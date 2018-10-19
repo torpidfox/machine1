@@ -1,16 +1,17 @@
 import sklearn.naive_bayes as nb
 from sklearn.metrics import accuracy_score
-from sklearn.impute import SimpleImputer
+#from sklearn.impute import SimpleImputer
+from sklearn.preprocessing.imputation import Imputer
 import numpy as np
 import pandas as pd
 from sklearn.utils import shuffle
 import matplotlib.pyplot as plt
 
 E1 = [10, 14]
-D1 = [[4, 0], [0, 4]]
+D1 = [[16, 0], [0, 16]]
 
 E2 = [20, 18]
-D2 = [[3, 0], [0, 3]]
+D2 = [[9, 0], [0, 9]]
 count = 50
 
 def prepare_dataset(filename, to_drop=None, to_factorize=None, to_fill=None):
@@ -23,7 +24,8 @@ def prepare_dataset(filename, to_drop=None, to_factorize=None, to_fill=None):
 	for column in to_factorize:
 		dataset[column] = pd.factorize(dataset[column])[0]
 
-	imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+	#imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+	imp = Imputer(missing_values=np.nan, strategy='mean')
 
 	for column in to_fill:
 		column_reshaped = [[el] for el in dataset[column]]
@@ -31,7 +33,32 @@ def prepare_dataset(filename, to_drop=None, to_factorize=None, to_fill=None):
 
 	return dataset
 
+def evaluate(data, sizes, clf_constructor):
+	acc = list()
+	dataset = shuffle(data)
+	test = sizes[-1]
 
+	for i in train_size:
+		clf = clf_constructor()
+		clf.fit(dataset[dataset.columns[:-1]][:i],
+			dataset[dataset.columns[-1]][:i])
+		acc.append(clf.score(dataset[dataset.columns[:-1]][test:], dataset[dataset.columns[-1]][test:]))
+
+	return acc
+
+def plot(data, xlabel=None, ylabel=None, title=None, xvals=None):
+	plt.plot(data)
+	
+	if xvals:
+		plt.xticks(list(range(len(data))), xvals)
+	if xlabel:
+		plt.xlabel(xlabel)
+	if ylabel:
+		plt.ylabel(ylabel)
+	if  title:
+		plt.title(title)
+	
+	plt.show()
 
 
 #generate data
@@ -43,7 +70,8 @@ data = {'features' : features,
 'tags' : [0] * count + [1] * count}
 
 #classify
-clf = nb.MultinomialNB()
+train_size = [1, 10, 40]
+clf = nb.GaussianNB()
 clf.fit(data['features'], data['tags'])
 predictions = clf.predict(data['features'])
 accuracy = accuracy_score(data['tags'], predictions)
@@ -57,7 +85,7 @@ plt.show()
 
 
 #read train data
-dataset = prepare_dataset('Titanic_train.csv',
+dataset = prepare_dataset('../Titanic_train.csv',
 	to_drop=['PassengerId', 'Cabin', 'Ticket'],
 	to_factorize=['Sex', 'Embarked'],
 	to_fill=['Age'])
@@ -68,67 +96,42 @@ clf.fit(dataset.drop('Survived', axis=1).as_matrix(),
 
 
 #read test data
-dataset = prepare_dataset('Titanic_test.csv',
+dataset = prepare_dataset('../Titanic_test.csv',
 	to_drop=['PassengerId', 'Cabin', 'Ticket'],
 	to_factorize=['Sex', 'Embarked'],
 	to_fill=['Age'])
 
-# print(np.where(data.values==float('nan')))
+train_size = [10, 150, 300]
+acc = evaluate(dataset, train_size, nb.GaussianNB)
+plot(acc, 
+	xlabel='Размер тренировочной выборки',
+	ylabel='Точность на валидационной выборке',
+	title='Зависимость качества обучения от объема тренировочной выборки',
+	xvals=train_size)
 
-# pred = clf.predict(dataset.values)
-# print(pred)
+#spam dataset
 
-#read spam dataset
-
-with open('spambase/spambase.data') as f:
+with open('../spambase/spambase.data') as f:
 	dataset = pd.read_csv(f, header=None)
 
-print(len(dataset))
-acc = list()
-train_size = [500, 1000, 3000, 3500, 4000]
-dataset = shuffle(dataset)
+train_size = [10, 50, 100, 1000, 3000, 3500, 4000]
+acc = evaluate(dataset, train_size, nb.GaussianNB)
+plot(acc, 
+	xlabel='Размер тренировочной выборки',
+	ylabel='Точность на валидационной выборке',
+	title='Зависимость качества обучения от объема тренировочной выборки',
+	xvals=train_size)
 
-for i in train_size:
-	clf = nb.GaussianNB()
-	clf.fit(dataset[dataset.columns[:-1]][:i],
-		dataset[dataset.columns[-1]][:i])
-	shuffled = dataset
-	acc.append(clf.score(shuffled[shuffled.columns[:-1]][4000:], shuffled[shuffled.columns[-1]][4000:]))
+#tictac dataset
 
-print(acc)
-
-with open('Tic_tac_toe.txt') as f:
+with open('../Tic_tac_toe.txt') as f:
 	dataset = pd.read_csv(f, header=None)
 
-
-for i in list(dataset):
-	dataset[i] = pd.factorize(dataset[i])[0]
-
+dataset = dataset.stack().rank(method='dense').unstack()
 train_size = [10, 50, 100, 500, 800]
-dataset = shuffle(dataset)
-acc = list()
-for i in train_size:
-	clf = nb.GaussianNB()
-	clf.fit(dataset[dataset.columns[:-1]][:i],
-		dataset[dataset.columns[-1]][:i])
-	shuffled = dataset
-	acc.append(clf.score(shuffled[shuffled.columns[:-1]][800:], shuffled[shuffled.columns[-1]][800:]))
-
-# print(acc)
-
-# plt.plot(acc)
-# plt.xticks(list(range(len(acc))), train_size)
-# plt.xlabel('Размер обучающей выборки')
-# plt.ylabel('Точность классификатора на тестовой выборке')
-# plt.title('Tic tac toe dataset')
-# plt.show()
-
-#read iris dataset
-
-
-
-
-
-
-
-
+acc = evaluate(dataset, train_size, nb.MultinomialNB)
+plot(acc, 
+	xlabel='Размер тренировочной выборки',
+	ylabel='Точность на валидационной выборке',
+	title='Зависимость качества обучения от объема тренировочной выборки',
+	xvals=train_size)
